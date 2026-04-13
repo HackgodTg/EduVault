@@ -1,0 +1,173 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user information and roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "TCET email address" },
+        "role": { "type": "string", "enum": ["student", "teacher", "hod", "admin"], "description": "User role" },
+        "erpId": { "type": "string", "description": "ERP ID for login" },
+        "department": { "type": "string", "description": "Department name" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "erpId"]
+    },
+    "QuestionBank": {
+      "title": "Question Bank",
+      "description": "Subject-wise and topic-wise question repository.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "department": { "type": "string" },
+        "semester": { "type": "number" },
+        "topic": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "marks": { "type": "number" },
+              "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] }
+            }
+          }
+        },
+        "createdBy": { "type": "string", "description": "UID of the teacher" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subject", "department", "semester", "topic", "questions", "createdBy"]
+    },
+    "PYQ": {
+      "title": "Previous Year Question",
+      "description": "Repository for previous year exam papers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "department": { "type": "string" },
+        "year": { "type": "number" },
+        "semester": { "type": "number" },
+        "fileUrl": { "type": "string", "format": "uri" },
+        "metadata": { "type": "object" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["subject", "department", "year", "semester", "fileUrl"]
+    },
+    "Attendance": {
+      "title": "Attendance Record",
+      "description": "Daily attendance for a specific class section.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "department": { "type": "string" },
+        "year": { "type": "string" },
+        "division": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "studentId": { "type": "string" },
+              "studentName": { "type": "string" },
+              "present": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Quiz definition for a class.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "department": { "type": "string" },
+        "year": { "type": "string" },
+        "division": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "number" }
+            }
+          }
+        },
+        "teacherId": { "type": "string" }
+      }
+    },
+    "QuizScore": {
+      "title": "Quiz Score",
+      "description": "Student score for a specific quiz.",
+      "type": "object",
+      "properties": {
+        "quizId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "erpId": { "type": "string" },
+        "score": { "type": "number" },
+        "total": { "type": "number" },
+        "submittedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AcademicResource": {
+      "title": "Academic Resource",
+      "description": "Metadata for uploaded documents like PDFs, textbooks, and question banks.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "category": { "type": "string", "enum": ["qb", "pyq", "library", "resources"] },
+        "department": { "type": "string" },
+        "year": { "type": "string" },
+        "semester": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "uploadedBy": { "type": "string", "description": "UID of the uploader" },
+        "uploaderName": { "type": "string" },
+        "uploaderRole": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subject", "url", "category", "department", "uploadedBy", "uploaderName", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents."
+    },
+    "/academic_resources/{resourceId}": {
+      "schema": "AcademicResource",
+      "description": "Shared academic resources collection."
+    },
+    "/questionBanks/{bankId}": {
+      "schema": "QuestionBank",
+      "description": "Question bank documents."
+    },
+    "/pyqs/{pyqId}": {
+      "schema": "PYQ",
+      "description": "Previous year question documents."
+    },
+    "/departments/{deptId}/classes/{classId}/attendance/{date}": {
+      "schema": "Attendance",
+      "description": "Attendance records segregated by department and class (e.g., /departments/IOT/classes/2_A/attendance/2024-04-11)."
+    },
+    "/departments/{deptId}/classes/{classId}/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quiz definitions segregated by department and class."
+    },
+    "/departments/{deptId}/classes/{classId}/quizzes/{quizId}/scores/{studentId}": {
+      "schema": "QuizScore",
+      "description": "Student quiz scores nested under the specific quiz."
+    }
+  }
+}

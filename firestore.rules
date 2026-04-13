@@ -1,0 +1,164 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             ((exists(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)).data.role == 'admin') || 
+              (request.auth.token.email in ["aditiikanade07@gmail.com", "sukhada.gokhale25@ies.edu"] && request.auth.token.email_verified == true));
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && 
+             (isAdmin() || 
+              (exists(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)).data.role in ['teacher', 'hod']));
+    }
+
+    function isHOD() {
+      return isAuthenticated() && 
+             (isAdmin() || 
+              (exists(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users_by_uid/$(request.auth.uid)).data.role == 'hod'));
+    }
+
+    // Validation Helpers
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'erpId', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['student', 'teacher', 'hod', 'admin'] &&
+             data.erpId is string && data.erpId.size() > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidQuestionBank(data) {
+      return data.keys().hasAll(['subject', 'department', 'semester', 'topic', 'questions', 'createdBy']) &&
+             data.subject is string && data.subject.size() > 0 &&
+             data.department is string &&
+             data.semester is number &&
+             data.topic is string &&
+             data.questions is list &&
+             data.createdBy == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{erpId} {
+      allow get: if true;
+      allow list: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data);
+      allow update: if (isDocOwner() || isTeacher()) && isValidUser(request.resource.data);
+    }
+
+    match /users_by_uid/{uid} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == uid;
+    }
+
+    match /questionBanks/{bankId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher() && isValidQuestionBank(request.resource.data);
+      allow update: if isTeacher() && (resource.data.createdBy == request.auth.uid || isHOD()) && isValidQuestionBank(request.resource.data);
+      allow delete: if isHOD();
+    }
+
+    match /pyqs/{pyqId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher();
+      allow update: if isTeacher() && (resource.data.uploadedBy == request.auth.uid || isHOD());
+      allow delete: if isHOD();
+    }
+
+    match /textbooks/{textbookId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isTeacher();
+    }
+
+    match /profile_requests/{requestId} {
+      // Allow students to read their own requests and teachers to read all
+      allow read: if isAuthenticated() && (isTeacher() || resource.data.studentId == request.auth.uid);
+      
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isTeacher();
+      allow delete: if isTeacher() || (isAuthenticated() && resource.data.studentId == request.auth.uid);
+    }
+
+    match /departments/{deptId} {
+      allow read: if isAuthenticated();
+      
+      match /classes/{classId} {
+        allow read: if isAuthenticated();
+
+        match /attendance/{date} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+        }
+
+        match /quizzes/{quizId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+
+          match /scores/{studentId} {
+            allow read: if isTeacher() || (isAuthenticated() && request.auth.uid == studentId);
+            allow create: if isAuthenticated() && request.auth.uid == studentId;
+            allow update: if false;
+          }
+        }
+
+        match /question_banks/{qbId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+        }
+
+        match /pyqs/{pyqId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+        }
+
+        match /digital_library/{libId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+        }
+
+        match /resources/{resId} {
+          allow read: if isAuthenticated();
+          allow write: if isTeacher();
+        }
+      }
+    }
+
+    match /academic_resources/{resourceId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher();
+      allow update: if isTeacher() || isHOD();
+      allow delete: if isTeacher() || isHOD();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isTeacher() || isHOD() || isAdmin();
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
